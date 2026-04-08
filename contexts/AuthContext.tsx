@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 
-// Matches the profile fields returned by the Django backend
+// Représente les champs de profil renvoyés par le backend Django
 export type AppUser = {
   id: string;
   email: string;
@@ -16,10 +16,13 @@ export type AppUser = {
 };
 
 type AuthContextType = {
-  /** Truthy when logged in — used as a session indicator in navigation guards. */
+  /**
+   * Vrai quand l'utilisateur est connecté — utilisé comme indicateur de session
+   * dans les garde-fous de navigation (voir app/index.tsx).
+   */
   session: AppUser | null;
   user: AppUser | null;
-  /** Same as user — profile fields are embedded in the user object. */
+  /** Alias de user — les champs profil sont embarqués dans l'objet utilisateur. */
   profile: AppUser | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
@@ -27,25 +30,28 @@ type AuthContextType = {
   signOut: () => Promise<void>;
 };
 
+// Contexte React qui rend les infos utilisateur accessibles depuis n'importe quel composant
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Restore session on mount
+  // Restaure la session au démarrage de l'app en lisant les tokens stockés
   useEffect(() => {
     (async () => {
       try {
         const tokens = await api._tokens.get();
         if (tokens) {
+          // Si des tokens sont présents, on récupère le profil utilisateur
           const me = await api.auth.me();
           setUser(me);
         }
       } catch {
+        // Tokens expirés ou invalides — on réinitialise
         await api._tokens.set(null);
       } finally {
-        setLoading(false);
+        setLoading(false);  // Fin du chargement initial
       }
     })();
   }, []);
@@ -67,10 +73,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     await api.auth.signOut();
-    setUser(null);
+    setUser(null);  // Vide l'état — la navigation redirige vers /auth/login
   };
 
   return (
+    // session et profile sont des alias de user pour la compatibilité avec les composants existants
     <AuthContext.Provider
       value={{ session: user, user, profile: user, loading, signIn, signUp, signOut }}
     >

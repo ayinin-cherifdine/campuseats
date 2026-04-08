@@ -219,6 +219,3 @@ docker compose up -d --build backend
 
 ---
 
-## Auteur
-
-**Ayinin Cherifdine** — [github.com/ayinin-cherifdine](https://github.com/ayinin-cherifdine)

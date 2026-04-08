@@ -1,27 +1,31 @@
 /**
- * REST API client — replaces the Supabase client.
- * Handles JWT auth, auto-refresh on 401, and platform-specific token storage.
+ * Client HTTP pour l'API REST Django — remplace l'ancien client Supabase.
+ * Gère l'authentification JWT, le renouvellement automatique du token sur 401
+ * et le stockage sécurisé des tokens selon la plateforme (mobile vs web).
  */
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
-// On web (nginx proxy) use same-origin; on mobile use explicit host.
+// Sur le web (proxy nginx), on utilise le même domaine (chemin relatif).
+// Sur mobile, on pointe vers l'IP du serveur Django (définie dans .env).
 const BASE_URL: string =
   process.env.EXPO_PUBLIC_API_URL ??
   (Platform.OS === 'web' ? '' : 'http://localhost:8000');
 
-// ── Token storage ─────────────────────────────────────────────────────────────
+// ── Stockage des tokens JWT ───────────────────────────────────────────────────────────────────
 
 const TOKEN_KEY = 'campuseats_auth_tokens';
 
 type Tokens = { access: string; refresh: string };
 
+// Cache en mémoire pour éviter de relire SecureStore à chaque requête
 let _cache: Tokens | null = null;
 
 const tokenStorage = {
   async get(): Promise<Tokens | null> {
-    if (_cache) return _cache;
+    if (_cache) return _cache;  // Utilise le cache si disponible
     try {
+      // Sur web : localStorage  |  Sur mobile : SecureStore (chiffré)
       const raw =
         Platform.OS === 'web'
           ? localStorage.getItem(TOKEN_KEY)
@@ -59,7 +63,7 @@ async function request<T = any>(path: string, options: RequestInit = {}): Promis
 
   let res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
 
-  // Auto-refresh on 401
+  // Renouvellement automatique du token sur 401 (access token expiré)
   if (res.status === 401 && tokens?.refresh) {
     const refreshRes = await fetch(`${BASE_URL}/api/auth/token/refresh/`, {
       method: 'POST',
@@ -68,6 +72,7 @@ async function request<T = any>(path: string, options: RequestInit = {}): Promis
     });
 
     if (refreshRes.ok) {
+      // Sauvegarde les nouveaux tokens et rejoue la requête originale
       const refreshData = await refreshRes.json();
       const newTokens: Tokens = {
         access: refreshData.access,
@@ -77,6 +82,7 @@ async function request<T = any>(path: string, options: RequestInit = {}): Promis
       headers['Authorization'] = `Bearer ${newTokens.access}`;
       res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
     } else {
+      // Refresh token également invalide → l'utilisateur doit se reconnecter
       await tokenStorage.set(null);
       throw new Error('Session expired. Please sign in again.');
     }
@@ -87,12 +93,14 @@ async function request<T = any>(path: string, options: RequestInit = {}): Promis
     throw new Error(errBody.detail ?? errBody.message ?? 'Request failed');
   }
 
-  if (res.status === 204) return null as T;
+  if (res.status === 204) return null as T;  // HTTP 204 No Content (ex: suppression, déconnexion)
   return res.json() as Promise<T>;
 }
 
 async function uploadRequest<T = any>(path: string, formData: FormData): Promise<T> {
   const tokens = await tokenStorage.get();
+  // Pas de Content-Type : le navigateur/React Native le détermine automatiquement
+  // (requis pour que le boundary multipart soit correct)
   const headers: Record<string, string> = {};
   if (tokens?.access) headers['Authorization'] = `Bearer ${tokens.access}`;
 
@@ -109,14 +117,15 @@ async function uploadRequest<T = any>(path: string, formData: FormData): Promise
   return res.json() as Promise<T>;
 }
 
-// ── Public API ────────────────────────────────────────────────────────────────
+// ── API publique exposée aux composants ────────────────────────────────────────────────
 
 export const api = {
-  /** Exposed so AuthContext can read / clear tokens. */
+  /** Exposé pour qu'AuthContext puisse lire / effacer les tokens. */
   _tokens: tokenStorage,
 
   auth: {
     async signIn(email: string, password: string) {
+      // Envoie les identifiants et stocke la paire de tokens JWT reçue
       const data = await request('/api/auth/login/', {
         method: 'POST',
         body: JSON.stringify({ email, password }),
@@ -126,6 +135,7 @@ export const api = {
     },
 
     async signUp(email: string, password: string, username: string, fullName: string) {
+      // Crée le compte et connecte l'utilisateur dès l'inscription
       const data = await request('/api/auth/register/', {
         method: 'POST',
         body: JSON.stringify({ email, password, username, full_name: fullName }),
@@ -137,28 +147,32 @@ export const api = {
     async signOut() {
       const tokens = await tokenStorage.get();
       try {
+        // On essaie d'invalider le refresh token côté serveur (blacklist JWT)
         await request('/api/auth/logout/', {
           method: 'POST',
           body: JSON.stringify({ refresh: tokens?.refresh }),
         });
       } catch {
-        // Best-effort logout
+        // Déconnexion en mode dégradé : on nettoie quand même les tokens locaux
       } finally {
         await tokenStorage.set(null);
       }
     },
 
     me() {
+      // Récupère le profil de l'utilisateur connecté via son token JWT
       return request('/api/auth/me/');
     },
   },
 
   videos: {
     feed() {
+      // Fil d'actualité : 20 dernières vidéos enrichies (profil, restaurant, is_liked)
       return request('/api/videos/feed/');
     },
 
     userVideos(userId: string) {
+      // Vidéos publiées par un utilisateur spécifique (onglet Profil)
       return request(`/api/videos/?user_id=${encodeURIComponent(userId)}`);
     },
 

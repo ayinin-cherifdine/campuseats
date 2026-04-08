@@ -20,9 +20,11 @@ export default function UploadScreen() {
   const [tags, setTags] = useState('');
   const [isFoodHack, setIsFoodHack] = useState(false);
   const [uploading, setUploading] = useState(false);
+  // Asset vidéo sélectionné depuis la médiathèque ou la caméra
   const [videoAsset, setVideoAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const router = useRouter();
 
+  // Ouvre la médiathèque pour choisir une vidéo
   const pickVideo = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
@@ -45,6 +47,7 @@ export default function UploadScreen() {
     }
   };
 
+  // Ouvre la caméra pour enregistrer une vidéo directement
   const recordVideo = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
@@ -79,6 +82,7 @@ export default function UploadScreen() {
 
     setUploading(true);
     try {
+      // Convertit la liste de tags (séparés par virgule) en tableau de chaînes
       const tagsArray = tags.split(',').map((t) => t.trim()).filter((t) => t.length > 0);
 
       await api.videos.upload(videoAsset.uri, {

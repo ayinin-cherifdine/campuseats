@@ -1,6 +1,11 @@
 import { Tabs } from 'expo-router';
 import { Hop as Home, Compass, CirclePlus as PlusCircle, User } from 'lucide-react-native';
 
+/**
+ * Layout des onglets principaux.
+ * Définit la barre de navigation inférieure avec ses 4 onglets :
+ * Accueil (fil vidéo) | Découvrir (restaurants) | Publier (upload) | Profil
+ */
 export default function TabLayout() {
   return (
     <Tabs
@@ -14,8 +19,8 @@ export default function TabLayout() {
           paddingBottom: 8,
           paddingTop: 8,
         },
-        tabBarActiveTintColor: '#FF6B35',
-        tabBarInactiveTintColor: '#64748B',
+        tabBarActiveTintColor: '#FF6B35',   // Orange CampusEats
+        tabBarInactiveTintColor: '#64748B', // Gris inactif
         tabBarLabelStyle: {
           fontSize: 12,
           fontWeight: '600',

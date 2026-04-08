@@ -33,7 +33,7 @@ export default function CommentsModal({
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(false);
   const [newComment, setNewComment] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting] = useState(false);  // Empêche le double envoi
 
   const loadComments = useCallback(async () => {
     setLoading(true);
@@ -41,27 +41,30 @@ export default function CommentsModal({
       const data = await api.comments.list(videoId);
       setComments(data || []);
     } catch (error) {
-      console.error('Error loading comments:', error);
+      console.error('Erreur lors du chargement des commentaires :', error);
     } finally {
       setLoading(false);
     }
   }, [videoId]);
 
+  // Charge les commentaires à chaque ouverture de la modal
   useEffect(() => {
     if (visible) loadComments();
   }, [visible, loadComments]);
 
   const handleSubmit = async () => {
+    // Sécurité : ne pas soumettre si vide ou non connecté
     if (!newComment.trim() || !user) return;
 
     setSubmitting(true);
     try {
       const data = await api.comments.create(videoId, newComment.trim());
+      // Ajoute le commentaire à la liste sans recharger tous les commentaires
       setComments((prev) => [...prev, data]);
       setNewComment('');
       onCommentAdded();
     } catch (error) {
-      console.error('Error posting comment:', error);
+      console.error('Erreur lors de l\'envoi du commentaire :', error);
     } finally {
       setSubmitting(false);
     }

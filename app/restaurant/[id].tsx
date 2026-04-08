@@ -24,13 +24,13 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function RestaurantDetailScreen() {
-  const { id } = useLocalSearchParams();
+  const { id } = useLocalSearchParams();  // UUID du restaurant dans l'URL
   const router = useRouter();
   const { user } = useAuth();
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isSaved, setIsSaved] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);  // Indique si l'utilisateur a mis en favori
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [newReview, setNewReview] = useState({ rating: 5, comment: '' });
 
@@ -40,6 +40,7 @@ export default function RestaurantDetailScreen() {
 
   const loadRestaurantData = async () => {
     try {
+      // Charge le détail et les avis en parallèle avec Promise.all
       const [restaurantData, reviewsData] = await Promise.all([
         api.restaurants.get(id as string),
         api.restaurants.reviews(id as string),
@@ -48,7 +49,7 @@ export default function RestaurantDetailScreen() {
       setReviews(reviewsData || []);
       setIsSaved(restaurantData?.is_saved ?? false);
     } catch (error) {
-      console.error('Error loading restaurant:', error);
+      console.error('Erreur lors du chargement du restaurant :', error);
     } finally {
       setLoading(false);
     }
@@ -57,6 +58,7 @@ export default function RestaurantDetailScreen() {
   const handleSave = async () => {
     if (!restaurant) return;
     try {
+      // Bascule entre sauvegarder et retirer des favoris
       if (isSaved) {
         await api.restaurants.unsave(restaurant.id);
         setIsSaved(false);
@@ -65,7 +67,7 @@ export default function RestaurantDetailScreen() {
         setIsSaved(true);
       }
     } catch (error) {
-      console.error('Error toggling save:', error);
+      console.error('Erreur lors de la sauvegarde :', error);
     }
   };
 
@@ -83,7 +85,7 @@ export default function RestaurantDetailScreen() {
       Alert.alert('Succès', 'Avis soumis !');
       setShowReviewForm(false);
       setNewReview({ rating: 5, comment: '' });
-      loadRestaurantData();
+      loadRestaurantData();  // Recharge pour mettre à jour la note moyenne
     } catch (error: any) {
       Alert.alert('Erreur', error.message || 'Échec de la soumission de l\'avis');
     }

@@ -16,17 +16,23 @@ from .serializers import (
 )
 
 
-# ── Video ─────────────────────────────────────────────────────────────────────
+# ── Vidéo ────────────────────────────────────────────────────────────────────
 
 class FeedView(APIView):
-    """GET /api/videos/feed/ — latest 20 videos with profile, restaurant, is_liked."""
+    """
+    GET /api/videos/feed/ — Fil d'actualité principal.
+    Retourne les 20 dernières vidéos enrichies du profil auteur,
+    du restaurant associé et d'un booléen is_liked pour l'utilisateur courant.
+    """
 
     def get(self, request):
+        # select_related évite les requêtes N+1 (jointures SQL en une seule requête)
         videos = (
             Video.objects
             .select_related('user', 'restaurant')
             .order_by('-created_at')[:20]
         )
+        # Récupère en une requête tous les IDs de vidéos aimées par l'utilisateur courant
         video_ids = [v.id for v in videos]
         liked_ids = set(
             Like.objects
@@ -42,20 +48,23 @@ class FeedView(APIView):
 
 class VideoListCreateView(APIView):
     """
-    GET  /api/videos/?user_id=<uuid> — list (optionally filtered by user)
-    POST /api/videos/               — upload a new video (multipart)
+    GET  /api/videos/?user_id=<uuid> — Liste les vidéos d'un utilisateur
+    POST /api/videos/               — Publie une nouvelle vidéo (multipart/form-data)
     """
+    # MultiPartParser + FormParser pour l'upload de fichiers binaires
+    # JSONParser pour les requêtes sans fichier (tests unitaires, etc.)
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get(self, request):
         qs = Video.objects.select_related('user', 'restaurant').order_by('-created_at')
         user_id = request.query_params.get('user_id')
         if user_id:
-            qs = qs.filter(user_id=user_id)
+            qs = qs.filter(user_id=user_id)  # Filtre par auteur si user_id fourni
         return Response(VideoSerializer(qs[:50], many=True, context={'request': request}).data)
 
     def post(self, request):
         video_file = request.FILES.get('video')
+        # Les tags arrivent en JSON-string depuis FormData (ex. '["burger","étudiant"]')
         tags_raw = request.data.get('tags', '[]')
         try:
             tags = json.loads(tags_raw) if isinstance(tags_raw, str) else tags_raw
@@ -70,9 +79,9 @@ class VideoListCreateView(APIView):
             duration=int(request.data.get('duration', 0) or 0),
         )
         if video_file:
-            video.video_file = video_file
+            video.video_file = video_file  # Fichier uploadé depuis le mobile
         else:
-            video.video_url = request.data.get('video_url', '')
+            video.video_url = request.data.get('video_url', '')  # URL externe (fallback)
 
         video.thumbnail_url = request.data.get('thumbnail_url', '')
         video.save()
@@ -80,13 +89,14 @@ class VideoListCreateView(APIView):
 
 
 class VideoDeleteView(APIView):
-    """DELETE /api/videos/<uuid>/ — supprime la vidéo et son fichier (propriétaire seulement)."""
+    """DELETE /api/videos/<uuid>/ — Supprime une vidéo et son fichier (propriétaire uniquement)."""
 
     def delete(self, request, pk):
         video = get_object_or_404(Video, pk=pk)
+        # Vérifie que l'utilisateur est bien le propriétaire de la vidéo
         if video.user_id != request.user.id:
             return Response({'detail': 'Non autorisé.'}, status=status.HTTP_403_FORBIDDEN)
-        # Supprimer le fichier physique du disque
+        # Supprime le fichier physique du disque pour libérer l'espace
         if video.video_file:
             try:
                 video.video_file.delete(save=False)
@@ -98,12 +108,13 @@ class VideoDeleteView(APIView):
 
 class LikeView(APIView):
     """
-    POST   /api/videos/<uuid>/like/ — like
-    DELETE /api/videos/<uuid>/like/ — unlike
+    POST   /api/videos/<uuid>/like/ — Aimer une vidéo (♥)
+    DELETE /api/videos/<uuid>/like/ — Retirer son like
     """
 
     def post(self, request, pk):
         video = get_object_or_404(Video, pk=pk)
+        # get_or_create évite les doublons (unique_together sur le modèle Like)
         _, created = Like.objects.get_or_create(user=request.user, video=video)
         if created:
             Video.objects.filter(pk=pk).update(likes_count=video.likes_count + 1)
@@ -113,6 +124,7 @@ class LikeView(APIView):
         video = get_object_or_404(Video, pk=pk)
         deleted, _ = Like.objects.filter(user=request.user, video=video).delete()
         if deleted:
+            # Décrémente le compteur (min 0 pour éviter les valeurs négatives)
             Video.objects.filter(pk=pk).update(
                 likes_count=max(0, video.likes_count - 1)
             )
@@ -121,12 +133,12 @@ class LikeView(APIView):
 
 class CommentListCreateView(APIView):
     """
-    GET  /api/videos/<uuid>/comments/ — list comments
-    POST /api/videos/<uuid>/comments/ — add comment
+    GET  /api/videos/<uuid>/comments/ — Liste les commentaires d'une vidéo
+    POST /api/videos/<uuid>/comments/ — Ajoute un commentaire
     """
 
     def get(self, request, pk):
-        get_object_or_404(Video, pk=pk)
+        get_object_or_404(Video, pk=pk)  # Vérifie que la vidéo existe (404 sinon)
         comments = Comment.objects.filter(video_id=pk).select_related('user').order_by('-created_at')
         return Response(CommentSerializer(comments, many=True).data)
 
@@ -137,6 +149,7 @@ class CommentListCreateView(APIView):
             return Response({'detail': 'Comment text is required.'}, status=400)
 
         comment = Comment.objects.create(user=request.user, video=video, text=text)
+        # Incrémente le compteur de commentaires sur la vidéo
         Video.objects.filter(pk=pk).update(comments_count=video.comments_count + 1)
         return Response(CommentSerializer(comment).data, status=status.HTTP_201_CREATED)
 
@@ -145,30 +158,36 @@ class CommentListCreateView(APIView):
 
 class RestaurantListCreateView(APIView):
     """
-    GET  /api/restaurants/?search=<term> — list / search
-    POST /api/restaurants/               — create
+    GET  /api/restaurants/?search=<terme> — Liste et recherche de restaurants
+    POST /api/restaurants/               — Crée un nouveau restaurant
+    La recherche filtre sur le nom ET le type de cuisine (insensible à la casse).
     """
 
     def get(self, request):
         qs = Restaurant.objects.all()
         search = request.query_params.get('search', '').strip()
         if search:
+            # Recherche sur le nom OU le type de cuisine
             qs = qs.filter(name__icontains=search) | qs.filter(cuisine_type__icontains=search)
         return Response(RestaurantSerializer(qs[:50], many=True).data)
 
     def post(self, request):
         serializer = RestaurantSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save(created_by=request.user)
+        serializer.save(created_by=request.user)  # Lie le restaurant au créateur
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
 class RestaurantDetailView(APIView):
-    """GET /api/restaurants/<uuid>/ — detail with is_saved flag."""
+    """
+    GET /api/restaurants/<uuid>/ — Détail d'un restaurant.
+    Ajoute is_saved : vrai si l'utilisateur courant a mis ce restaurant en favori.
+    """
 
     def get(self, request, pk):
         restaurant = get_object_or_404(Restaurant, pk=pk)
         data = RestaurantSerializer(restaurant).data
+        # Indique si l'utilisateur connecté a sauvegardé ce restaurant
         data['is_saved'] = SavedPlace.objects.filter(
             user=request.user, restaurant=restaurant
         ).exists()
@@ -177,8 +196,8 @@ class RestaurantDetailView(APIView):
 
 class SavedPlaceView(APIView):
     """
-    POST   /api/restaurants/<uuid>/save/ — save a restaurant
-    DELETE /api/restaurants/<uuid>/save/ — unsave
+    POST   /api/restaurants/<uuid>/save/ — Sauvegarder un restaurant en favori
+    DELETE /api/restaurants/<uuid>/save/ — Retirer des favoris
     """
 
     def post(self, request, pk):
@@ -194,8 +213,9 @@ class SavedPlaceView(APIView):
 
 class ReviewListCreateView(APIView):
     """
-    GET  /api/restaurants/<uuid>/reviews/ — list reviews
-    POST /api/restaurants/<uuid>/reviews/ — add review
+    GET  /api/restaurants/<uuid>/reviews/ — Liste les avis d'un restaurant
+    POST /api/restaurants/<uuid>/reviews/ — Ajoute un avis
+    Après chaque ajout, la note moyenne du restaurant est recalculée.
     """
 
     def get(self, request, pk):
@@ -215,7 +235,7 @@ class ReviewListCreateView(APIView):
             comment=comment,
         )
 
-        # Recompute restaurant average rating
+        # Recalcule la note moyenne du restaurant après chaque nouvel avis
         agg = Review.objects.filter(restaurant=restaurant).aggregate(avg=Avg('rating'))
         restaurant.average_rating = round(agg['avg'] or 0, 1)
         restaurant.total_reviews = Review.objects.filter(restaurant=restaurant).count()
@@ -224,10 +244,10 @@ class ReviewListCreateView(APIView):
         return Response(ReviewSerializer(review).data, status=status.HTTP_201_CREATED)
 
 
-# ── Profile ───────────────────────────────────────────────────────────────────
+# ── Profil ───────────────────────────────────────────────────────────────────
 
 class ProfileDetailView(APIView):
-    """GET /api/profiles/<uuid>/ — public profile."""
+    """GET /api/profiles/<uuid>/ — Profil public d'un utilisateur."""
 
     def get(self, request, pk):
         from apps.accounts.models import User

@@ -29,6 +29,7 @@ function VideoPlayerModal({
   video: Video | null;
   onClose: () => void;
 }) {
+  // Crée un lecteur dédié pour la vidéo sélectionnée, avec boucle et son activé
   const player = useVideoPlayer(video?.video_url ?? null, (p) => {
     p.loop = true;
     p.muted = false;
@@ -36,7 +37,7 @@ function VideoPlayerModal({
 
   useEffect(() => {
     if (video?.video_url) {
-      try { player.play(); } catch { /* ignore */ }
+      try { player.play(); } catch { /* ignorer si autoplay bloqué */ }
     }
   }, [video?.video_url]);
 
@@ -108,7 +109,7 @@ export default function ProfileScreen() {
       const data: Video[] = await api.videos.userVideos(profile.id);
       setVideos(data || []);
     } catch (error) {
-      console.error('Error loading user videos:', error);
+      console.error('Erreur lors du chargement des vidéos :', error);
     } finally {
       setLoading(false);
     }
@@ -139,9 +140,10 @@ export default function ProfileScreen() {
   const handleSignOut = async () => {
     try {
       await signOut();
+      // Après la déconnexion, redirige forcément vers l'écran de connexion
       router.replace('/auth/login');
     } catch (error) {
-      console.error('Error signing out:', error);
+      console.error('Erreur lors de la déconnexion :', error);
     }
   };
 
@@ -163,6 +165,7 @@ export default function ProfileScreen() {
 
           <View style={styles.profileImageContainer}>
             <Image
+              {/* Avatar : image personnalisée ou générée par ui-avatars.com avec initiales */}
               source={{ uri: profile.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.full_name || profile.username)}&background=FF6B35&color=fff&size=120&bold=true` }}
               style={styles.profileImage}
             />

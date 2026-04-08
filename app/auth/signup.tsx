@@ -20,11 +20,12 @@ export default function SignUpScreen() {
   const [username, setUsername] = useState('');
   const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState('');  // Message d'erreur affiché sous le formulaire
   const { signUp } = useAuth();
   const router = useRouter();
 
   const handleSignUp = async () => {
+    // Validation côté client avant l'appel réseau
     if (!email || !password || !username || !fullName) {
       setError('Veuillez remplir tous les champs');
       return;
@@ -40,6 +41,7 @@ export default function SignUpScreen() {
 
     try {
       await signUp(email, password, username, fullName);
+      // Inscription réussie → redirection directe vers l'app (déjà connecté)
       router.replace('/(tabs)');
     } catch (err: any) {
       setError(err.message || 'Échec de la création du compte');

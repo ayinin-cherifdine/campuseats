@@ -17,11 +17,12 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState('');  // Message d'erreur affiché sous le formulaire
   const { signIn } = useAuth();
   const router = useRouter();
 
   const handleLogin = async () => {
+    // Validation basique côté client avant d'appeler l'API
     if (!email || !password) {
       setError('Veuillez remplir tous les champs');
       return;
@@ -32,6 +33,7 @@ export default function LoginScreen() {
 
     try {
       await signIn(email, password);
+      // Connexion réussie → redirection vers l'onglet Accueil
       router.replace('/(tabs)');
     } catch (err: any) {
       setError(err.message || 'Échec de la connexion');

@@ -32,7 +32,8 @@ export function VideoCard({ video, isActive, onLikeUpdate }: VideoCardProps) {
   const [isLiking, setIsLiking] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [commentsCount, setCommentsCount] = useState(video.comments_count);
-  // Web browsers block autoplay with sound → start muted on web
+  // Sur les navigateurs web, l'autoplay avec le son est bloqué par défaut.
+  // On commence donc en mode muet sur web, avec un bouton pour activer le son.
   const [isMuted, setIsMuted] = useState(Platform.OS === 'web');
   const isActiveRef = useRef(isActive);
   const [isPausedByUser, setIsPausedByUser] = useState(false);
@@ -47,38 +48,41 @@ export function VideoCard({ video, isActive, onLikeUpdate }: VideoCardProps) {
     p.muted = Platform.OS === 'web';
   });
 
-  // Sync mute state to player
+  // Synchronise l'état du son avec le lecteur vidéo
   useEffect(() => {
     player.muted = isMuted;
   }, [isMuted]);
 
-  // Track latest isActive in a ref so the statusChange listener can access it
+  // Garde la valeur de isActive accessible dans le listener statusChange
+  // (les useEffect fermant sur des valeurs obsolètes, on utilise une ref)
   useEffect(() => {
     isActiveRef.current = isActive;
   }, [isActive]);
 
-  // Play/pause when the active card changes
+  // Lance ou met en pause la vidéo quand la carte active change
   useEffect(() => {
     if (!isRealVideo) return;
     if (isActive) {
+      // On joue seulement si l'utilisateur n'a pas mis en pause manuellement
       if (!isPausedByUserRef.current) {
-        try { player.play(); } catch { /* autoplay blocked; wait for readyToPlay */ }
+        try { player.play(); } catch { /* autoplay bloqué ; attente du readyToPlay */ }
       }
     } else {
-      try { player.pause(); } catch { /* ignore */ }
+      try { player.pause(); } catch { /* ignorer */ }
     }
   }, [isActive, isRealVideo]);
 
-  // Also play when the player finishes loading (handles the case where
-  // play() was called before the video was buffered)
+  // Joue également quand le joueur finit de mettre en mémoire tampon
+  // (gère le cas où play() est appelé avant que la vidéo soit prête)
   const statusEvent = useEvent(player, 'statusChange', { status: player.status, error: undefined as any });
   const playerStatus = statusEvent.status;
   const playerError = statusEvent.error;
 
   useEffect(() => {
     if (!isRealVideo) return;
+    // Dès que la vidéo est prête ET que la carte est active ET que l'utilisateur n'a pas mis en pause
     if (playerStatus === 'readyToPlay' && isActiveRef.current && !isPausedByUserRef.current) {
-      try { player.play(); } catch { /* autoplay blocked */ }
+      try { player.play(); } catch { /* autoplay bloqué */ }
     }
     if (playerStatus === 'error') {
       console.error('[VideoPlayer] erreur:', playerError?.message, '| URL:', video.video_url);
@@ -89,6 +93,7 @@ export function VideoCard({ video, isActive, onLikeUpdate }: VideoCardProps) {
     if (isLiking || !user) return;
 
     setIsLiking(true);
+    // Optimistic update : on met à jour l'UI avant la réponse du serveur
     const newIsLiked = !isLiked;
     const newCount = newIsLiked ? likesCount + 1 : likesCount - 1;
 
@@ -103,9 +108,10 @@ export function VideoCard({ video, isActive, onLikeUpdate }: VideoCardProps) {
         await api.videos.unlike(video.id);
       }
     } catch (error) {
+      // En cas d'échec réseau, on annule la mise à jour optimiste
       setIsLiked(!newIsLiked);
       setLikesCount(likesCount);
-      console.error('Error toggling like:', error);
+      console.error('Erreur lors du like :', error);
     } finally {
       setIsLiking(false);
     }
@@ -119,16 +125,19 @@ export function VideoCard({ video, isActive, onLikeUpdate }: VideoCardProps) {
     if (!isRealVideo || !isActive) return;
     try {
       if (isPausedByUserRef.current) {
+        // État actuel : en pause → on reprend la lecture
         player.play();
         setIsPausedByUser(false);
         isPausedByUserRef.current = false;
         setTapAction('play');
       } else {
+        // État actuel : en lecture → on met en pause
         player.pause();
         setIsPausedByUser(true);
         isPausedByUserRef.current = true;
         setTapAction('pause');
       }
+      // Affiche l'icône pendant 700ms puis la cache
       setShowTapIndicator(true);
       setTimeout(() => setShowTapIndicator(false), 700);
     } catch {}
@@ -166,7 +175,7 @@ export function VideoCard({ video, isActive, onLikeUpdate }: VideoCardProps) {
             }
           </View>
         )}
-        {/* Overlay débug — visible en cas d'erreur du player */}}
+        {/* Overlay débug — visible en cas d'erreur du player */}
         {playerStatus === 'error' && (
           <View style={styles.errorOverlay}>
             <Text style={styles.errorTitle}>⚠️ Vidéo inaccessible</Text>

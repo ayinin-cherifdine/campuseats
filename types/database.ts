@@ -18,13 +18,13 @@ export type Restaurant = {
   latitude: number;
   longitude: number;
   cuisine_type: string;
-  price_range: number;
+  price_range: number;    // 1=€ | 2=€€ | 3=€€€
   photo_url: string;
   average_rating: number;
   total_reviews: number;
   created_by: string | null;
   created_at: string;
-  /** Returned by the detail endpoint, indicating if the current user saved this place. */
+  /** Renvoyé uniquement par l'endpoint de détail : vrai si l'utilisateur a sauvegardé ce lieu. */
   is_saved?: boolean;
 };
 

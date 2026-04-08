@@ -19,10 +19,12 @@ export default function FeedScreen() {
   const { user } = useAuth();
   const [videos, setVideos] = useState<VideoWithProfile[]>([]);
   const [loading, setLoading] = useState(true);
+  // Index de la carte vidéo actuellement visible à l'écran
   const [activeIndex, setActiveIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
 
-  // Reload the feed every time this tab comes into focus (new uploads appear immediately)
+  // Recharge le fil à chaque fois que cet onglet revient au premier plan
+  // (pour afficher immédiatement les nouvelles vidéos publiées)
   useFocusEffect(
     useCallback(() => {
       loadVideos();
@@ -34,12 +36,13 @@ export default function FeedScreen() {
       const videosData: VideoWithProfile[] = await api.videos.feed();
       setVideos(videosData ?? []);
     } catch (error) {
-      console.error('Error loading videos:', error);
+      console.error('Erreur lors du chargement du fil :', error);
     } finally {
       setLoading(false);
     }
   };
 
+  // Propage la mise à jour du like d'une vidéo dans la liste sans recharger toute la page
   const handleLikeUpdate = (
     videoId: string,
     isLiked: boolean,
@@ -54,6 +57,7 @@ export default function FeedScreen() {
     );
   };
 
+  // Détecte quelle carte est visible (seuil : 60% de la surface visible)
   const onViewableItemsChanged = useCallback(
     ({ viewableItems }: { viewableItems: ViewToken[] }) => {
       if (viewableItems.length > 0) {

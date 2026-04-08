@@ -18,6 +18,10 @@ import { useRouter } from 'expo-router';
 
 type Coords = { latitude: number; longitude: number };
 
+/**
+ * Calcule la distance en kilomètres entre deux coordonnées GPS.
+ * Utilise la formule de Haversine (distance sur une sphère).
+ */
 function haversineKm(a: Coords, b: Coords): number {
   const R = 6371;
   const dLat = ((b.latitude - a.latitude) * Math.PI) / 180;
@@ -34,6 +38,7 @@ export default function DiscoverScreen() {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  // Position GPS de l'utilisateur (null si non autorisée ou non demandée)
   const [userLocation, setUserLocation] = useState<Coords | null>(null);
   const [locating, setLocating] = useState(false);
   const router = useRouter();
@@ -47,7 +52,7 @@ export default function DiscoverScreen() {
       const data: Restaurant[] = await api.restaurants.list();
       setRestaurants(data || []);
     } catch (error) {
-      console.error('Error loading restaurants:', error);
+      console.error('Erreur lors du chargement des restaurants :', error);
     } finally {
       setLoading(false);
     }
@@ -78,6 +83,7 @@ export default function DiscoverScreen() {
     }
   };
 
+  // Filtre les restaurants en temps réel selon la saisie de l'utilisateur
   const filteredRestaurants = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return restaurants.filter(
@@ -89,6 +95,7 @@ export default function DiscoverScreen() {
     );
   }, [searchQuery, restaurants]);
 
+  // Si la localisation est disponible, trie les restaurants par distance croissante
   const displayRestaurants = useMemo(() => {
     if (!userLocation) return filteredRestaurants;
     return [...filteredRestaurants].sort(
