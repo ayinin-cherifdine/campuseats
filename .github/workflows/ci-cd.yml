@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   # ── Tests backend ─────────────────────────────────────────────────────────
   test-backend:

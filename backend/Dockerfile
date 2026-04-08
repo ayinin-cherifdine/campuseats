@@ -12,11 +12,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Create migrations directories and bake initial migrations into the image
-RUN mkdir -p apps/accounts/migrations apps/content/migrations && \
-    touch apps/accounts/migrations/__init__.py apps/content/migrations/__init__.py && \
-    python manage.py makemigrations accounts content --noinput
-
 # Collect static files for Django admin UI
 RUN python manage.py collectstatic --noinput 2>/dev/null || true
 
