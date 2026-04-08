@@ -66,12 +66,12 @@ jobs:
           cd backend
           python manage.py test --verbosity=2
 
-  # ── Build images Docker ───────────────────────────────────────────────────
-  build:
-    name: Build images Docker
+  # ── Build image Docker backend ────────────────────────────────────────────
+  build-backend:
+    name: Build image backend
     runs-on: ubuntu-latest
     needs: test-backend
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    if: github.ref == 'refs/heads/main'
 
     steps:
       - name: Récupérer le code
@@ -99,26 +99,16 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build et push — image frontend
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile.frontend
-          push: true
-          build-args: |
-            EXPO_PUBLIC_API_URL=${{ secrets.EXPO_PUBLIC_API_URL }}
-          tags: |
-            ghcr.io/${{ github.repository }}/frontend:${{ github.sha }}
-            ghcr.io/${{ github.repository }}/frontend:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  # ── Déploiement (main uniquement) ─────────────────────────────────────────
+  # ── Déploiement (main uniquement, nécessite secrets SSH) ──────────────────
   deploy:
     name: Déploiement en production
     runs-on: ubuntu-latest
-    needs: build
-    if: github.ref == 'refs/heads/main'
+    needs: build-backend
+    if: |
+      github.ref == 'refs/heads/main' &&
+      secrets.DEPLOY_HOST != ''
+    # Pour activer le déploiement, configurer ces secrets dans GitHub :
+    # DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY, DEPLOY_PATH
 
     steps:
       - name: Déployer sur le serveur via SSH
@@ -129,17 +119,10 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
             cd ${{ secrets.DEPLOY_PATH }}
-
-            # Mettre à jour les images
             echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             docker pull ghcr.io/${{ github.repository }}/backend:latest
-            docker pull ghcr.io/${{ github.repository }}/frontend:latest
-
-            # Redémarrer les services
-            docker compose pull
             docker compose up -d --no-build
             docker compose exec backend python manage.py migrate --noinput
             docker compose exec backend python manage.py collectstatic --noinput
-
-            # Nettoyer les anciennes images
             docker image prune -f
+
