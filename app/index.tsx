@@ -16,7 +16,7 @@ export default function Index() {
   const segments = useSegments();
 
   useEffect(() => {
-    // On attend la fin du chargement pour éviter une redirection prématurée
+    // On attend la fin du chargement pour éviter une redirection prématuré
     if (loading) return;
 
     const inAuthGroup = segments[0] === 'auth';
