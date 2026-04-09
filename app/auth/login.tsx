@@ -33,7 +33,7 @@ export default function LoginScreen() {
 
     try {
       await signIn(email, password);
-      // Connexion réussie → redirection vers l'onglet Accueil
+      // Connexion ok → redirection vers l'onglet Accueil
       router.replace('/(tabs)');
     } catch (err: any) {
       setError(err.message || 'Échec de la connexion');
