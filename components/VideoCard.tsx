@@ -48,7 +48,7 @@ export function VideoCard({ video, isActive, onLikeUpdate }: VideoCardProps) {
     p.muted = Platform.OS === 'web';
   });
 
-  // Synchronise l'état du son avec le lecteur vidéo
+  // Synchronise l'état du son avec le lecteur vidéo pour une lecture en boucle
   useEffect(() => {
     player.muted = isMuted;
   }, [isMuted]);
